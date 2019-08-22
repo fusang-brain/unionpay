@@ -22,6 +22,7 @@ export default {
         ifValidateRemoteCert: false,
         backUrl: '',
         frontUrl: '',
+        certPath: `${__dirname}/../cert/test/`,
         signCert: {
             path: `${__dirname}/../cert/test/acp_test_sign.pfx`,
             pwd: '000000',
@@ -35,5 +36,8 @@ export default {
         rootCert: {
             path: `${__dirname}/../cert/test/acp_test_root.cer`,
         },
+        // merId: '',
+        // privateKey: '',
+        // certId: '',
     },
 }

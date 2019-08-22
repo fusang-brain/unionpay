@@ -14,7 +14,7 @@
     "tslint-config-prettier": "^1.18.0",
     "typescript": "^3.5.3"
   },
-  "name": "unionpay",
+  "name": "@fsba/unionpay",
   "description": "",
   "version": "1.0.0",
   "main": "lib/index.js",
