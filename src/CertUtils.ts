@@ -13,134 +13,132 @@ const x509 = require('x509')
 const COMPANY = '中国银联股份有限公司'
 
 class Cert {
-    public cert: any
-    public certId: string
-    public key: string
+  public cert: any
+  public certId: string
+  public key: string
 
-    constructor({ cert, certId, key }: { cert: any; certId: string; key: string }) {
-        this.key = key
-        this.certId = certId
-        this.cert = cert
-    }
+  constructor({ cert, certId, key }: { cert: any; certId: string; key: string }) {
+    this.key = key
+    this.certId = certId
+    this.cert = cert
+  }
 }
 
 export default class CertUtil {
-    static verifyCerts: {
-        [key: string]: Cert
-    } = {}
+  static verifyCerts: {
+    [key: string]: Cert
+  } = {}
 
-    static config: UnionpayConfig
+  static config: UnionpayConfig
 
-    static initVerifyCerts(certDir?: string) {
-        if (!this.config) {
-            this.config = config(getMode())
+  static initVerifyCerts(certDir?: string) {
+    if (!this.config) {
+      this.config = config(getMode())
+    }
+    const { acpsdk } = this.config
+    if (!certDir) {
+      certDir = acpsdk.certPath
+    }
+
+    return new Promise((resolve, reject) => {
+      if (!certDir) {
+        reject(null)
+        return
+      }
+
+      fs.readdir(certDir, (err, files) => {
+        if (err) {
+          reject(err)
+          return
         }
-        const { acpsdk } = this.config
-        if (!certDir) {
-            certDir = acpsdk.certPath
-        }
+        const certList: string[] = []
 
-        return new Promise((resolve, reject) => {
-            if (!certDir) {
-                reject(null)
-                return
+        if (files && files.length) {
+          files.forEach(filename => {
+            const filenames = filename.split('.')
+            if (filenames[filenames.length - 1] === 'cer') {
+              certList.push(join(certDir || '/', filename))
             }
+          })
+        }
+        for (const cerPath of certList) {
+          const content = fs.readFileSync(cerPath, 'utf-8')
+          const certData = x509.parseCert(content)
 
-            fs.readdir(certDir, (err, files) => {
-                if (err) {
-                    reject(err)
-                    return
-                }
-                const certList: string[] = []
+          const certID = hexToDecimal(certData.serial)
 
-                if (files && files.length) {
-                    files.forEach(filename => {
-                        const filenames = filename.split('.')
-                        if (filenames[filenames.length - 1] === 'cer') {
-                            certList.push(join(certDir || '/', filename))
-                        }
-                    })
-                }
-                for (const cerPath of certList) {
-                    const content = fs.readFileSync(cerPath, 'utf-8')
-                    const certData = x509.parseCert(content)
+          const cert = new Cert({
+            cert: certData,
+            key: content,
+            certId: certID,
+          })
 
-                    const certID = hexToDecimal(certData.serial)
+          this.verifyCerts[certID] = cert
+        }
 
-                    const cert = new Cert({
-                        cert: certData,
-                        key: content,
-                        certId: certID,
-                    })
+        resolve(true)
+      })
+    })
+  }
 
-                    this.verifyCerts[certID] = cert
-                }
-
-                resolve(true)
-            })
-        })
+  static async getVerifyCertByCertID(certID: string) {
+    if (Object.keys(this.verifyCerts).length === 0) {
+      await this.initVerifyCerts()
     }
 
-    static async getVerifyCertByCertID(certID: string) {
-        if (Object.keys(this.verifyCerts).length === 0) {
-            await this.initVerifyCerts()
-        }
-
-        if (Object.keys(this.verifyCerts).length === 0) {
-            return null
-        }
-
-        if (this.verifyCerts[certID]) {
-            return this.verifyCerts[certID].key
-        }
-
-        return null
+    if (Object.keys(this.verifyCerts).length === 0) {
+      return null
     }
 
-    static parseSignedDataFromPfx(certPath: string, certPwd: string) {
-        // const extractedData =
-        const keyFile = fs.readFileSync(certPath, 'binary')
-
-        const p12Asn1 = forge.asn1.fromDer(keyFile)
-
-        const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, certPwd)
-
-        const bags = p12.getBags({ bagType: forge.pki.oids.certBag })
-        const keyData1 = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag })[
-            forge.pki.oids.pkcs8ShroudedKeyBag
-        ]
-        const keyData2 = p12.getBags({ bagType: forge.pki.oids.keyBag })[forge.pki.oids.keyBag]
-        // if (!keyData1 || !keyData2) {
-        //   return null;
-        // }
-        const keyData = (keyData1 || []).concat(keyData2 || [])
-
-        const bagsTemp = bags[forge.pki.oids.certBag]
-
-        if (!bagsTemp) {
-            return null
-        }
-
-        const bag = bagsTemp[0]
-        if (!bag.cert) {
-            return null
-        }
-
-        return {
-            certificate: forge.pki.certificateToPem(bag.cert),
-            privateKey: keyData.length && keyData[0].key ? forge.pki.privateKeyToPem(keyData[0].key) : undefined,
-        }
+    if (this.verifyCerts[certID]) {
+      return this.verifyCerts[certID].key
     }
 
-    /**
-     * parseCertData
-     * @param certificate
-     */
-    static parseCertData(certificate: string) {
-        const certData = x509.parseCert(certificate)
+    return null
+  }
 
-        const certID = hexToDecimal(certData.serial)
+  static parseSignedDataFromPfx(certPath: string, certPwd: string) {
+    // const extractedData =
+    const keyFile = fs.readFileSync(certPath, 'binary')
 
-        return certID
+    const p12Asn1 = forge.asn1.fromDer(keyFile)
+
+    const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, certPwd)
+
+    const bags = p12.getBags({ bagType: forge.pki.oids.certBag })
+    const keyData1 = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag })[forge.pki.oids.pkcs8ShroudedKeyBag]
+    const keyData2 = p12.getBags({ bagType: forge.pki.oids.keyBag })[forge.pki.oids.keyBag]
+    // if (!keyData1 || !keyData2) {
+    //   return null;
+    // }
+    const keyData = (keyData1 || []).concat(keyData2 || [])
+
+    const bagsTemp = bags[forge.pki.oids.certBag]
+
+    if (!bagsTemp) {
+      return null
     }
+
+    const bag = bagsTemp[0]
+    if (!bag.cert) {
+      return null
+    }
+
+    return {
+      certificate: forge.pki.certificateToPem(bag.cert),
+      privateKey: keyData.length && keyData[0].key ? forge.pki.privateKeyToPem(keyData[0].key) : undefined,
+    }
+  }
+
+  /**
+   * parseCertData
+   * @param certificate
+   */
+  static parseCertData(certificate: string) {
+    const certData = x509.parseCert(certificate)
+
+    const certID = hexToDecimal(certData.serial)
+
+    return certID
+  }
 }
