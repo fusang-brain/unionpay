@@ -1,7 +1,7 @@
 import { Greeter } from '../index'
 import config from '../config'
 import CertUtils from '../CertUtils'
-import Unionpay from '../Unionpay';
+import Unionpay from '../Unionpay'
 
 test('My Greeter', () => {
     expect(Greeter('Carl')).toBe('Hello Carl')
@@ -30,10 +30,10 @@ test('Parse Cert Data', () => {
 })
 
 test('Get VerifyCert By CertID', async () => {
-  Unionpay.setMode('dev');
-  await CertUtils.getVerifyCertByCertID('123');
-  for (const id of Object.keys(CertUtils.verifyCerts)) {
-    const content = await CertUtils.getVerifyCertByCertID(id);
-    expect(content).toEqual(CertUtils.verifyCerts[id].key);
-  }
+    Unionpay.setMode('dev')
+    await CertUtils.getVerifyCertByCertID('123')
+    for (const id of Object.keys(CertUtils.verifyCerts)) {
+        const content = await CertUtils.getVerifyCertByCertID(id)
+        expect(content).toEqual(CertUtils.verifyCerts[id].key)
+    }
 }, 500000)
